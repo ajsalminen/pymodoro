@@ -8,6 +8,7 @@
 import os
 import sys
 import time
+import json
 from argparse import ArgumentParser
 from subprocess import Popen
 
@@ -249,6 +250,9 @@ class Pymodoro(object):
         self.session = os.path.expanduser(self.config.session_file)
         self.set_durations()
         self.running = True
+        self.command = { 'command': 'stop', 'timestamp': 0 }
+        self.interrupts = 0
+        self.start = 0
 
     def run(self):
         """ Start main loop."""
@@ -264,18 +268,36 @@ class Pymodoro(object):
             self.state = self.IDLE_STATE
 
         current_state = self.state
-        seconds_left = self.get_seconds_left()
-        break_duration = self.config.break_duration_in_seconds
-        break_elapsed = self.get_break_elapsed(seconds_left)
-
-        if seconds_left is None:
-            next_state = self.IDLE_STATE
-        elif seconds_left > 0:
-            next_state = self.ACTIVE_STATE
-        elif break_elapsed < break_duration:
-            next_state = self.BREAK_STATE
+        next_state = self.IDLE_STATE
+        print self.state
+        new_command = self.get_command()
+        if new_command and self.command['command'] != 'interrupt':
+            if self.command['command'] == 'stop':
+                next_state = self.IDLE_STATE
+                self.start = 0
+            if self.command['command'] == 'start':
+                self.interrupts = 0
+                self.start = self.command['timestamp']
+                next_state = self.ACTIVE_STATE
+                self.taskname = self.command['taskname']
         else:
-            next_state = self.WAIT_STATE
+            seconds_left = self.get_seconds_left()
+            break_duration = self.config.break_duration_in_seconds
+            break_elapsed = self.get_break_elapsed(seconds_left)
+
+
+            if current_state == self.ACTIVE_STATE or current_state == self.BREAK_STATE:
+                if seconds_left is None:
+                    next_state = self.IDLE_STATE
+                elif seconds_left > 0:
+                    if new_command and self.command['command'] == 'interrupt':
+                        self.interrupts = self.interrupts + 1
+                    next_state = self.ACTIVE_STATE
+                elif break_elapsed < break_duration:
+                    next_state = self.BREAK_STATE
+                else:
+                    next_state = self.WAIT_STATE
+
 
         if next_state is not current_state:
             self.send_notifications(next_state)
@@ -379,13 +401,25 @@ class Pymodoro(object):
         if enabled and self.state == self.ACTIVE_STATE:
             self.play_sound(self.config.tick_sound_file)
 
+    def get_command(self):
+        with file(self.session) as f:
+            s = f.read()
+            command = json.loads(s)
+
+            if command['timestamp'] != self.command['timestamp']:
+                self.command = command
+                if command['command'] == 'start':
+                    self.start = command['timestamp']
+                return True
+            else:
+                return False
+
     def get_seconds_left(self):
         """Return seconds remaining in the current session."""
         seconds_left = None
         session_duration = self.config.session_duration_in_seconds
-        if os.path.exists(self.session):
-            start_time = os.path.getmtime(self.session)
-            seconds_left = session_duration - time.time() + start_time
+        start_time = self.start
+        seconds_left = session_duration - time.time() + start_time
         return seconds_left
 
     def get_break_elapsed(self, seconds_left):
