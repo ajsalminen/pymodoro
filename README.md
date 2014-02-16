@@ -1,5 +1,9 @@
 # Pymodoro
 
+This is a modified version of Pymodoro with working, but very rough implementation of the following features:
+commands to stop the timer, log interruptions during the pomodoro, ability to pass a name for the pomodoro being worked on and
+basic logging of work that has been done.
+
 ## Running
 
 To run, put the files into a new folder called **.pymodoro** inside your home folder. Configure your xmobar to display pymodoro with
@@ -16,13 +20,25 @@ To install Pymodoro system wide, run the setup.py script like this:
 
 ## Usage
 
-A new Pomodoro -- 25 minutes followed by a break of 5 minutes -- is started by changing the timestamp of ~/.pomodoro_session. This can be done by the shell command:
+A new Pomodoro -- 25 minutes followed by a break of 5 minutes -- is started by writing a start command to ~/.pomodoro_session.
+An example of how to do that with php is
 
-    touch ~/.pomodoro_session
+    php -r 'print json_encode(array("timestamp"=>time(), "command" => "start", "taskname" => "mytask"))' > ~/.pomodoro_session
 
-If you want to use counters with different times, write them into the session file. The first number specifies the length of the Pomodoro in minutes, the second one the length of the break. Both numbers are optional. Example:
+You can use that or something similar. Other commands are stop (to stop the timer) and interrupt (for logging an
+interruption that happened during the pomodoro). Create a script you can call from xmonad, your todo list manager
+etc. For example I use something like this to start the timer in emacs
 
-    echo "20 2" > pomodoro_session
+    (defun pymodoro-start ()
+      "Write a command to start pymodoro for the todo.txt item
+    on the current line"
+      (interactive)
+      (let (todoItem)
+          (setq todoItem (substring (thing-at-point 'line) 0 -1))
+            (setq pymodoroCommand (json-encode `(:command start :timestamp ,(float-time) :taskname ,todoItem)))
+            (write-region pymodoroCommand nil log-file nil)))
+
+
 
 ### Keybindings
 
@@ -30,15 +46,15 @@ The easiest way is to define keybindings for the commands.
 
 #### Xmonad
 
-Configure xmonad to start a new Pomodoro session by adding this to your xmonad.hs:
+Configure xmonad to start a new Pomodoro session by adding a call to your timer start script to your xmonad.hs:
 
-    -- start a pomodoro
-    , ((modMask, xK_n), spawn "touch ~/.pomodoro_session")
+    -- start a pomodoro (replace scriptname with your own)
+    , ((modMask, xK_n), spawn "/path/to/scriptname")
 
 Or:
 
     -- start a pomodoro
-    , ("M-n", spawn "touch ~/.pomodoro_session")
+    , ("M-n", spawn "touch /path/to/scriptname")
 
 This way, whenever you hit modMask + n, you will start a new pomodoro.
 
