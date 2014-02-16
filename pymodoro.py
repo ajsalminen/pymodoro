@@ -9,6 +9,7 @@ import os
 import sys
 import time
 import json
+import logging
 from argparse import ArgumentParser
 from subprocess import Popen
 
@@ -253,6 +254,8 @@ class Pymodoro(object):
         self.command = { 'command': 'stop', 'timestamp': 0 }
         self.interrupts = 0
         self.start = 0
+        logging.basicConfig(filename='pymodoro.log',level=logging.DEBUG,
+                            format='%(asctime)s %(message)s')
 
     def run(self):
         """ Start main loop."""
@@ -301,6 +304,7 @@ class Pymodoro(object):
 
         if next_state is not current_state:
             self.send_notifications(next_state)
+            self.log(next_state)
             self.state = next_state
 
     def send_notifications(self, next_state):
@@ -324,6 +328,16 @@ class Pymodoro(object):
 
         if sound:
             self.play_sound(sound)
+
+    def log(self, next_state):
+        if self.state == self.ACTIVE_STATE:
+            interruptions = ''
+            if self.interrupts:
+                interruptions = 'interruptions: ' + self.interrupts
+            if next_state == self.BREAK_STATE:
+                logging.info('completed: "%s" %s', self.taskname, interruptions)
+            if next_state == self.IDLE_STATE:
+                logging.info('stopped: "%s" %s', self.taskname, interruptions)
 
     def print_output(self):
         """Print output determined by the current state."""
